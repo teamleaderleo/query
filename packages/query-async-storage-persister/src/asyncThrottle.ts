@@ -20,7 +20,7 @@ export function asyncThrottle<TArgs extends ReadonlyArray<unknown>>(
   return (...args: TArgs) => {
     lastArgs = args
     if (scheduledPromise) return scheduledPromise
-    scheduledPromise = (async () => {
+    scheduledPromise = Promise.resolve().then(async () => {
       while (isExecuting) {
         await new Promise((done) => timeoutManager.setTimeout(done, interval))
       }
@@ -40,7 +40,7 @@ export function asyncThrottle<TArgs extends ReadonlyArray<unknown>>(
       }
       nextExecutionTime = Date.now() + interval
       isExecuting = false
-    })()
+    })
     return scheduledPromise
   }
 }
