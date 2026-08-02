@@ -15,30 +15,32 @@ export function asyncThrottle<TArgs extends ReadonlyArray<unknown>>(
   let nextExecutionTime = 0
   let lastArgs = null
   let isExecuting = false
-  let isScheduled = false
+  let scheduledPromise: Promise<void> | undefined
 
-  return async (...args: TArgs) => {
+  return (...args: TArgs) => {
     lastArgs = args
-    if (isScheduled) return
-    isScheduled = true
-    while (isExecuting) {
-      await new Promise((done) => timeoutManager.setTimeout(done, interval))
-    }
-    while (Date.now() < nextExecutionTime) {
-      await new Promise((done) =>
-        timeoutManager.setTimeout(done, nextExecutionTime - Date.now()),
-      )
-    }
-    isScheduled = false
-    isExecuting = true
-    try {
-      await func(...lastArgs)
-    } catch (error) {
+    if (scheduledPromise) return scheduledPromise
+    scheduledPromise = (async () => {
+      while (isExecuting) {
+        await new Promise((done) => timeoutManager.setTimeout(done, interval))
+      }
+      while (Date.now() < nextExecutionTime) {
+        await new Promise((done) =>
+          timeoutManager.setTimeout(done, nextExecutionTime - Date.now()),
+        )
+      }
+      scheduledPromise = undefined
+      isExecuting = true
       try {
-        onError(error)
-      } catch {}
-    }
-    nextExecutionTime = Date.now() + interval
-    isExecuting = false
+        await func(...lastArgs)
+      } catch (error) {
+        try {
+          onError(error)
+        } catch {}
+      }
+      nextExecutionTime = Date.now() + interval
+      isExecuting = false
+    })()
+    return scheduledPromise
   }
 }
