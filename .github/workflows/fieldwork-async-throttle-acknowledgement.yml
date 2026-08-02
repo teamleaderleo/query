@@ -1,0 +1,46 @@
+name: Fieldwork async throttle acknowledgement
+
+on:
+  pull_request:
+    branches:
+      - fix/async-throttle-shared-acknowledgement
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fieldwork-async-throttle-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check candidate formatting
+        run: >-
+          pnpm exec prettier --check
+          packages/query-async-storage-persister/src/asyncThrottle.ts
+          packages/query-async-storage-persister/src/__tests__/asyncThrottle.test.ts
+          packages/query-async-storage-persister/src/__tests__/asyncThrottleAcknowledgement.test.ts
+          .changeset/fuzzy-rivers-wait.md
+      - name: Run focused package tests
+        run: >-
+          pnpm --filter @tanstack/query-async-storage-persister test:lib --run
+          src/__tests__/asyncThrottle.test.ts
+          src/__tests__/asyncThrottleAcknowledgement.test.ts
+      - name: Run package lint
+        run: pnpm --filter @tanstack/query-async-storage-persister test:eslint
+      - name: Run current TypeScript check
+        run: pnpm --filter @tanstack/query-async-storage-persister test:types:tscurrent
