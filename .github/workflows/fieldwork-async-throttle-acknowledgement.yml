@@ -1,6 +1,6 @@
 name: Fieldwork async throttle acknowledgement
 
-# Candidate under test: 8b48cab4876c2bca6528fe3c2839341911e68a3b
+# Candidate under test: 02fc79ee3ca4597c667d16bfa955b9af4da68c5c
 on:
   pull_request:
     branches:
@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Verify exact candidate base
+        run: test "$(git rev-parse HEAD^1)" = "02fc79ee3ca4597c667d16bfa955b9af4da68c5c"
       - uses: pnpm/action-setup@v4
         with:
           version: 11.9.0
