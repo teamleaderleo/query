@@ -13,13 +13,19 @@ export function asyncThrottle<TArgs extends ReadonlyArray<unknown>>(
   if (typeof func !== 'function') throw new Error('argument is not function.')
 
   let nextExecutionTime = 0
-  let lastArgs = null
-  let isExecuting = false
-  let scheduledPromise: Promise<void> | undefined
+  let currentExecution: Promise<void> | undefined
+  let scheduledExecution:
+    | {
+        args: TArgs
+        promise: Promise<void>
+      }
+    | undefined
 
   return (...args: TArgs) => {
-    lastArgs = args
-    if (scheduledPromise) return scheduledPromise
+    if (scheduledExecution) {
+      scheduledExecution.args = args
+      return scheduledExecution.promise
+    }
 
     let resolveScheduled!: () => void
     let rejectScheduled!: (error: unknown) => void
@@ -27,28 +33,38 @@ export function asyncThrottle<TArgs extends ReadonlyArray<unknown>>(
       resolveScheduled = resolve
       rejectScheduled = reject
     })
-    scheduledPromise = promise
+    const execution = { args, promise }
+    scheduledExecution = execution
 
     void (async () => {
-      while (isExecuting) {
-        await new Promise((done) => timeoutManager.setTimeout(done, interval))
+      if (currentExecution) {
+        await currentExecution
       }
       while (Date.now() < nextExecutionTime) {
         await new Promise((done) =>
           timeoutManager.setTimeout(done, nextExecutionTime - Date.now()),
         )
       }
-      scheduledPromise = undefined
-      isExecuting = true
+
+      if (scheduledExecution === execution) {
+        scheduledExecution = undefined
+      }
+
+      let finishExecution!: () => void
+      currentExecution = new Promise<void>((resolve) => {
+        finishExecution = resolve
+      })
       try {
-        await func(...lastArgs)
+        await func(...execution.args)
       } catch (error) {
         try {
           onError(error)
         } catch {}
+      } finally {
+        nextExecutionTime = Date.now() + interval
+        currentExecution = undefined
+        finishExecution()
       }
-      nextExecutionTime = Date.now() + interval
-      isExecuting = false
     })().then(resolveScheduled, rejectScheduled)
 
     return promise
