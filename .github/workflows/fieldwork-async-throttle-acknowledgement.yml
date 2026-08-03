@@ -1,5 +1,6 @@
 name: Fieldwork async throttle acknowledgement
 
+# Candidate under test: da53586f66a20e8a2cc4c5eee8dd09d9f6c32e37
 on:
   pull_request:
     branches:
