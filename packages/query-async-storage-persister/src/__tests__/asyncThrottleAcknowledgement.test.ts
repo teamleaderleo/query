@@ -18,7 +18,7 @@ describe('asyncThrottle coalesced acknowledgement', () => {
   it('settles coalesced callers after the latest arguments execute', async () => {
     const firstStarted = deferred<void>()
     const releaseFirst = deferred<void>()
-    const executions: number[] = []
+    const executions: Array<number> = []
     const throttled = asyncThrottle(
       async (value: number) => {
         executions.push(value)
@@ -60,7 +60,7 @@ describe('asyncThrottle coalesced acknowledgement', () => {
     const secondStarted = deferred<void>()
     const releaseFirst = deferred<void>()
     const releaseSecond = deferred<void>()
-    const executions: number[] = []
+    const executions: Array<number> = []
     const throttled = asyncThrottle(
       async (value: number) => {
         executions.push(value)
