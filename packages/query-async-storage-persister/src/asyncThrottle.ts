@@ -20,7 +20,16 @@ export function asyncThrottle<TArgs extends ReadonlyArray<unknown>>(
   return (...args: TArgs) => {
     lastArgs = args
     if (scheduledPromise) return scheduledPromise
-    scheduledPromise = Promise.resolve().then(async () => {
+
+    let resolveScheduled!: () => void
+    let rejectScheduled!: (error: unknown) => void
+    const promise = new Promise<void>((resolve, reject) => {
+      resolveScheduled = resolve
+      rejectScheduled = reject
+    })
+    scheduledPromise = promise
+
+    void (async () => {
       while (isExecuting) {
         await new Promise((done) => timeoutManager.setTimeout(done, interval))
       }
@@ -40,7 +49,8 @@ export function asyncThrottle<TArgs extends ReadonlyArray<unknown>>(
       }
       nextExecutionTime = Date.now() + interval
       isExecuting = false
-    })
-    return scheduledPromise
+    })().then(resolveScheduled, rejectScheduled)
+
+    return promise
   }
 }
