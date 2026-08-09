@@ -13,32 +13,60 @@ export function asyncThrottle<TArgs extends ReadonlyArray<unknown>>(
   if (typeof func !== 'function') throw new Error('argument is not function.')
 
   let nextExecutionTime = 0
-  let lastArgs = null
-  let isExecuting = false
-  let isScheduled = false
+  let currentExecution: Promise<void> | undefined
+  let scheduledExecution:
+    | {
+        args: TArgs
+        promise: Promise<void>
+      }
+    | undefined
 
-  return async (...args: TArgs) => {
-    lastArgs = args
-    if (isScheduled) return
-    isScheduled = true
-    while (isExecuting) {
-      await new Promise((done) => timeoutManager.setTimeout(done, interval))
+  return (...args: TArgs) => {
+    if (scheduledExecution) {
+      scheduledExecution.args = args
+      return scheduledExecution.promise
     }
-    while (Date.now() < nextExecutionTime) {
-      await new Promise((done) =>
-        timeoutManager.setTimeout(done, nextExecutionTime - Date.now()),
-      )
-    }
-    isScheduled = false
-    isExecuting = true
-    try {
-      await func(...lastArgs)
-    } catch (error) {
+
+    let resolveScheduled!: () => void
+    let rejectScheduled!: (error: unknown) => void
+    const promise = new Promise<void>((resolve, reject) => {
+      resolveScheduled = resolve
+      rejectScheduled = reject
+    })
+    const execution = { args, promise }
+    scheduledExecution = execution
+
+    void (async () => {
+      if (currentExecution) {
+        await currentExecution
+      }
+      while (Date.now() < nextExecutionTime) {
+        await new Promise((done) =>
+          timeoutManager.setTimeout(done, nextExecutionTime - Date.now()),
+        )
+      }
+
+      if (scheduledExecution === execution) {
+        scheduledExecution = undefined
+      }
+
+      let finishExecution!: () => void
+      currentExecution = new Promise<void>((resolve) => {
+        finishExecution = resolve
+      })
       try {
-        onError(error)
-      } catch {}
-    }
-    nextExecutionTime = Date.now() + interval
-    isExecuting = false
+        await func(...execution.args)
+      } catch (error) {
+        try {
+          onError(error)
+        } catch {}
+      } finally {
+        nextExecutionTime = Date.now() + interval
+        currentExecution = undefined
+        finishExecution()
+      }
+    })().then(resolveScheduled, rejectScheduled)
+
+    return promise
   }
 }
